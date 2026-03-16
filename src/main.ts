@@ -20,6 +20,8 @@ import { JsonFileStore } from './store.js';
 import { SDKLLMProvider, resolveClaudeCliPath, preflightCheck } from './llm-provider.js';
 import { PendingPermissions } from './permission-gateway.js';
 import { setupLogger } from './logger.js';
+import { CronStore } from './cron-store.js';
+import { CronScheduler } from './cron.js';
 
 const RUNTIME_DIR = path.join(CTI_HOME, 'runtime');
 const STATUS_FILE = path.join(RUNTIME_DIR, 'status.json');
@@ -159,6 +161,16 @@ async function main(): Promise<void> {
 
   await bridgeManager.start();
 
+  // ── Cron Scheduler ──
+  const cronStore = new CronStore();
+  const cronScheduler = new CronScheduler({
+    store: cronStore,
+    llm,
+    defaultWorkDir: config.defaultWorkDir,
+    defaultModel: config.defaultModel,
+  });
+  cronScheduler.start();
+
   // Graceful shutdown
   let shuttingDown = false;
   const shutdown = async (signal?: string) => {
@@ -166,6 +178,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     const reason = signal ? `signal: ${signal}` : 'shutdown requested';
     console.log(`[claude-to-im] Shutting down (${reason})...`);
+    cronScheduler.stop();
     pendingPerms.denyAll();
     await bridgeManager.stop();
     writeStatus({ running: false, lastExitReason: reason });

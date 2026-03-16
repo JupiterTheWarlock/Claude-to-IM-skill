@@ -9,7 +9,7 @@ description: |
   Subcommands: setup, start, stop, status, logs, reconfigure, doctor.
   Do NOT use for: building standalone bots, webhook integrations, or coding with IM
   platform SDKs — those are regular programming tasks.
-argument-hint: "setup | start | stop | status | logs [N] | reconfigure | doctor"
+argument-hint: "setup | start | stop | status | logs [N] | reconfigure | doctor | cron <list|add|remove|enable|disable|logs|status|edit>"
 allowed-tools:
   - Bash
   - Read
@@ -45,6 +45,16 @@ Parse the user's intent from `$ARGUMENTS` into one of these subcommands:
 **Disambiguation: `status` vs `doctor`** — Use `status` when the user just wants to check if the bridge is running (informational). Use `doctor` when the user reports a problem or suspects something is broken (diagnostic). When in doubt and the user describes a symptom (e.g., "没反应了", "挂了"), prefer `doctor`.
 
 Extract optional numeric argument for `logs` (default 50).
+
+For `cron` subcommands, parse the second argument:
+- `cron list` / `cron ls` — list all scheduled tasks
+- `cron remove <id>` / `cron rm <id>` — remove a task
+- `cron enable <id>` — enable a task
+- `cron disable <id>` — disable a task
+- `cron logs [n]` — show cron logs (default 50 lines)
+- `cron status` — show task execution status
+- `cron edit` — open cron.json in editor
+- `cron add` — show help for adding tasks (interactive wizard not implemented yet)
 
 Before asking users for any platform credentials, read `SKILL_DIR/references/setup-guides.md` internally so you know where to find each credential. Do NOT dump the full guide to the user upfront — only mention the specific next step they need to do (e.g., "Go to https://open.feishu.cn → your app → Credentials to find the App ID"). If the user says they don't know how, then show the relevant section of the guide.
 
@@ -169,6 +179,66 @@ Show results and suggest fixes for any failures. Common fixes:
 For more complex issues (messages not received, permission timeouts, high memory, stale PID files), read `SKILL_DIR/references/troubleshooting.md` for detailed diagnosis steps.
 
 **Feishu upgrade note:** If the user upgraded from an older version of this skill and Feishu is returning permission errors (e.g. streaming cards not working, typing indicators failing, permission buttons unresponsive), the root cause is almost certainly missing permissions or callbacks in the Feishu backend. Refer the user to the "Upgrading from a previous version" section in `SKILL_DIR/references/setup-guides.md` — they need to add new scopes (`cardkit:card:write`, `cardkit:card:read`, `im:message:update`, `im:message.reactions:read`, `im:message.reactions:write_only`), add the `card.action.trigger` callback, and re-publish the app. The upgrade requires two publish cycles because adding the callback needs an active WebSocket connection (bridge must be running).
+
+### `cron`
+
+Manage scheduled tasks that run prompts at specified times.
+
+**Config file:** `~/.claude-to-im/cron.json`
+
+**Task format:**
+```json
+{
+  "tasks": [
+    {
+      "id": "task_1234567890_abc123",
+      "schedule": "0 9 * * *",
+      "message": "Generate daily AI news summary",
+      "channels": ["discord:1479399509556592721"],
+      "log": true,
+      "enabled": true,
+      "createdAt": "2026-03-16T12:00:00.000Z",
+      "updatedAt": "2026-03-16T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+**Fields:**
+- `schedule`: crontab expression (5 fields: minute hour day month weekday)
+- `message`: prompt sent to agent when task runs
+- `channels`: list of IM channels to send results (format: `platform:chatId`). Leave empty to only log.
+- `log`: if true, write results to `~/.claude-to-im/logs/cron.log`
+- `enabled`: if false, task is paused
+
+**Subcommands:**
+
+- `cron list` / `cron ls`: Show all tasks in tabular format
+- `cron status`: Show detailed status including last run time and result
+- `cron logs [n]`: Show last n lines of cron log (default 50)
+- `cron edit`: Open cron.json in $EDITOR (creates file if missing)
+- `cron remove <id>` / `cron rm <id>`: Delete a task
+- `cron enable <id>`: Enable a disabled task
+- `cron disable <id>`: Disable a task without deleting
+- `cron add`: Show help for manual task creation
+
+**Adding tasks:**
+
+Currently, tasks must be added by editing cron.json directly (use `cron edit`). Interactive wizard coming soon.
+
+Example task:
+```json
+{
+  "id": "daily_news",
+  "schedule": "0 9 * * *",
+  "message": "Generate a daily AI news summary from r/LocalLLaMA and r/MachineLearning",
+  "channels": ["discord:1479399509556592721"],
+  "log": true,
+  "enabled": true
+}
+```
+
+**Note:** The bridge must be running for cron tasks to execute. Run `/claude-to-im start` first.
 
 ## Notes
 
