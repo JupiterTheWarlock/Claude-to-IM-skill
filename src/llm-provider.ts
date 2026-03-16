@@ -28,7 +28,7 @@ const ENV_WHITELIST = new Set([
 ]);
 
 /** Prefixes that are always stripped (even in inherit mode). */
-const ENV_ALWAYS_STRIP = ['CLAUDECODE'];
+const ENV_ALWAYS_STRIP = ['CLAUDECODE', 'HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy'];
 
 // ── Auth/credential-error detection ──
 

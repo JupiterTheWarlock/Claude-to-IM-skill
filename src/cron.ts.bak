@@ -1,15 +1,17 @@
 /**
  * Cron scheduler for claude-to-im-skill.
  *
- * Uses croner to schedule tasks, executes them by calling CLI directly.
+ * Uses croner to schedule tasks, executes them by creating new sessions
+ * and calling the LLMProvider.
  */
 
 import { Cron } from 'croner';
 import { CronStore, type CronTask } from './cron-store.js';
 import { CTI_HOME } from './config.js';
-import { resolveClaudeCliPath } from './llm-provider.js';
+import { resolveClaudeCliPath, buildSubprocessEnv } from './llm-provider.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 const LOG_DIR = path.join(CTI_HOME, 'logs');
 
@@ -17,6 +19,7 @@ interface CronSchedulerOptions {
   store: CronStore;
   defaultWorkDir: string;
   defaultModel?: string;
+  /** Optional: send message to IM channel. Format: "platform:chatId" */
   sendMessage?: (channel: string, message: string) => Promise<void>;
 }
 
@@ -34,13 +37,18 @@ export class CronScheduler {
 
   constructor(options: CronSchedulerOptions) {
     this.store = options.store;
+    this.llm = options.llm;
     this.sendMessage = options.sendMessage;
     this.defaultWorkDir = options.defaultWorkDir;
     this.defaultModel = options.defaultModel;
 
+    // Ensure log dir exists
     fs.mkdirSync(LOG_DIR, { recursive: true });
   }
 
+  /**
+   * Start the scheduler — load all enabled tasks and schedule them.
+   */
   start(): void {
     const tasks = this.store.list().filter(t => t.enabled);
 
@@ -51,6 +59,9 @@ export class CronScheduler {
     console.log(`[cron] Scheduler started with ${tasks.length} task(s)`);
   }
 
+  /**
+   * Stop all scheduled jobs.
+   */
   stop(): void {
     for (const [id, { job }] of this.jobs) {
       job.stop();
@@ -59,7 +70,11 @@ export class CronScheduler {
     this.jobs.clear();
   }
 
+  /**
+   * Schedule a single task.
+   */
   scheduleTask(task: CronTask): boolean {
+    // Stop existing job if any
     const existing = this.jobs.get(task.id);
     if (existing) {
       existing.job.stop();
@@ -85,6 +100,9 @@ export class CronScheduler {
     }
   }
 
+  /**
+   * Unschedule a task.
+   */
   unscheduleTask(taskId: string): void {
     const scheduled = this.jobs.get(taskId);
     if (scheduled) {
@@ -94,56 +112,90 @@ export class CronScheduler {
     }
   }
 
+  /**
+   * Reload all tasks from store and reschedule.
+   */
   reload(): void {
     this.stop();
     this.start();
   }
 
+  /**
+   * Execute a task using direct CLI call (bypasses SDK).
+   * Simpler and more reliable for cron use case.
+   */
   private async executeWithCli(task: CronTask): Promise<{ text: string; error?: string }> {
     const cliPath = resolveClaudeCliPath();
     if (!cliPath) {
       return { text: '', error: 'Claude CLI not found' };
     }
 
-    try {
-      const { execSync } = await import('node:child_process');
-      const result = execSync(
-        `env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy -u ALL_PROXY -u all_proxy -u NO_PROXY -u no_proxy "${cliPath}" --print "${task.message.replace(/"/g, '\\"')}"`,
-        {
-          encoding: 'utf-8',
-          timeout: 120000,
-          cwd: this.defaultWorkDir,
-          maxBuffer: 10 * 1024 * 1024, // 10MB
+    const env = buildSubprocessEnv();
+    
+    return new Promise((resolve) => {
+      const child = spawn(cliPath, ['--print', task.message], {
+        env,
+        cwd: this.defaultWorkDir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve({ text: stdout.trim() });
+        } else {
+          resolve({ 
+            text: stdout.trim(), 
+            error: stderr.trim() || `Exit code: ${code}` 
+          });
         }
-      );
-      return { text: result.trim(), error: undefined };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { text: '', error: message };
-    }
+      });
+
+      child.on('error', (err) => {
+        resolve({ text: '', error: err.message });
+      });
+    });
   }
 
+  /**
+   * Execute a task — call CLI directly, send results.
+   */
   private async executeTask(task: CronTask): Promise<void> {
     console.log(`[cron] Executing task ${task.id}: ${task.message.slice(0, 50)}...`);
 
+    // Use direct CLI call instead of SDK
     const result = await this.executeWithCli(task);
 
     if (result.error) {
       console.error(`[cron] Task ${task.id} failed: ${result.error}`);
+      
       if (task.log) {
         this.store.appendLog(task.id, `Error: ${result.error}`);
       }
+      
       this.store.markRun(task.id, 'error', result.error);
       return;
     }
 
     const responseText = result.text || '(no output)';
     
+    // Truncate if too long for IM
     const maxLen = 4000;
     const truncatedResponse = responseText.length > maxLen
       ? responseText.slice(0, maxLen) + '\n... (truncated)'
       : responseText;
 
+    // Send to channels if configured
     if (task.channels && task.channels.length > 0 && this.sendMessage) {
       for (const channel of task.channels) {
         try {
@@ -156,8 +208,15 @@ export class CronScheduler {
           }
         }
       }
+    } else if (task.channels && task.channels.length > 0) {
+      // Channels configured but no sendMessage handler
+      console.warn(`[cron] Task ${task.id} has channels but no sendMessage handler`);
+      if (task.log) {
+        this.store.appendLog(task.id, `Warning: channels configured but no sendMessage handler`);
+      }
     }
 
+    // Log if enabled
     if (task.log) {
       this.store.appendLog(task.id, `Success:\n${truncatedResponse}`);
     }
@@ -165,4 +224,5 @@ export class CronScheduler {
     this.store.markRun(task.id, 'success');
     console.log(`[cron] Task ${task.id} completed`);
   }
+
 }
