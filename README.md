@@ -41,13 +41,13 @@ Claude Code / Codex → reads/writes your codebase
 ### npx skills (recommended)
 
 ```bash
-npx skills add op7418/Claude-to-IM-skill
+npx skills add JupiterTheWarlock/Claude-to-IM-skill
 ```
 
 ### Git clone
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.claude/skills/claude-to-im
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/.claude/skills/claude-to-im
 ```
 
 Clones the repo directly into your personal skills directory. Claude Code discovers it automatically.
@@ -57,7 +57,7 @@ Clones the repo directly into your personal skills directory. Claude Code discov
 If you prefer to keep the repo elsewhere (e.g., for development):
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
 mkdir -p ~/.claude/skills
 ln -s ~/code/Claude-to-IM-skill ~/.claude/skills/claude-to-im
 ```
@@ -67,14 +67,14 @@ ln -s ~/code/Claude-to-IM-skill ~/.claude/skills/claude-to-im
 If you use [Codex](https://github.com/openai/codex), clone directly into the Codex skills directory:
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.codex/skills/claude-to-im
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/.codex/skills/claude-to-im
 ```
 
 Or use the provided install script for automatic dependency installation and build:
 
 ```bash
 # Clone and install (copy mode)
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
 bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh
 
 # Or use symlink mode for development

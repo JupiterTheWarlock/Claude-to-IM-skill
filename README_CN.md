@@ -41,13 +41,13 @@ Claude Code / Codex → 读写你的代码库
 ### npx skills（推荐）
 
 ```bash
-npx skills add op7418/Claude-to-IM-skill
+npx skills add JupiterTheWarlock/Claude-to-IM-skill
 ```
 
 ### Git 克隆
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.claude/skills/claude-to-im
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/.claude/skills/claude-to-im
 ```
 
 将仓库直接克隆到个人 Skills 目录，Claude Code 会自动发现。
@@ -57,7 +57,7 @@ git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.claude/skills/clau
 如果你想把仓库放在其他位置（比如方便开发）：
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
 mkdir -p ~/.claude/skills
 ln -s ~/code/Claude-to-IM-skill ~/.claude/skills/claude-to-im
 ```
@@ -67,14 +67,14 @@ ln -s ~/code/Claude-to-IM-skill ~/.claude/skills/claude-to-im
 如果你使用 [Codex](https://github.com/openai/codex)，直接克隆到 Codex skills 目录：
 
 ```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.codex/skills/claude-to-im
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/.codex/skills/claude-to-im
 ```
 
 或使用提供的安装脚本，自动安装依赖并构建：
 
 ```bash
 # 克隆并安装（复制模式）
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
+git clone -b feat/heartbeat https://github.com/JupiterTheWarlock/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
 bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh
 
 # 或使用符号链接模式（方便开发）
